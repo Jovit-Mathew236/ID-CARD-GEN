@@ -7,18 +7,70 @@ class IDCardGenerator:
     def __init__(self, template_path):
         # Load the template
         self.template = Image.open(template_path)
-        # Template dimensions
-        self.template_width = 630
-        self.template_height = 1080
+        # A4 dimensions in pixels (at 300 DPI)
+        self.a4_width = 2480  # 210mm
+        self.a4_height = 3508  # 297mm
         
-    def create_id_card(self, name, zone, photo_path, output_path,
-                      photo_position=(315, 575),    # Horizontally centered (630/2), ~450px from top
-                      photo_size=(435, 435),        # Circular photo size
-                      name_position=(315, 850),     # Centered horizontally, ~880px from top
-                      zone_position=(315, 940)):    # Centered horizontally, ~950px from top
+        # Calculate scaled template size to fit 2x3 grid with padding
+        self.padding = 30  # padding between cards and edges
+        available_width = (self.a4_width - (self.padding * 4)) / 3  # space for 3 columns
+        available_height = (self.a4_height - (self.padding * 3)) / 2  # space for 2 rows
+        
+        # Calculate scale factor while maintaining aspect ratio
+        width_scale = available_width / 630
+        height_scale = available_height / 1080
+        self.scale_factor = min(width_scale, height_scale)
+        
+        # New template dimensions
+        self.template_width = int(630 * self.scale_factor)
+        self.template_height = int(1080 * self.scale_factor)
+        
+    def create_id_cards_sheet(self, students_data):
+        # Create blank A4 sheet
+        a4_sheet = Image.new('RGB', (self.a4_width, self.a4_height), 'white')
+        
+        for idx, student in enumerate(students_data):
+            if idx >= 6:  # Only 6 cards per sheet
+                break
+            
+            # Calculate position in 2x3 grid
+            row = idx // 3
+            col = idx % 3
+            
+            # Calculate x and y positions with padding
+            x = self.padding + col * (self.template_width + self.padding)
+            y = self.padding + row * (self.template_height + self.padding)
+            
+            # Generate individual card
+            card = self.create_id_card(
+                name=student['Name'],
+                zone=student['Zone'],
+                photo_path=student['image'],
+                output_path=None,  # Don't save individual cards
+                scale_factor=self.scale_factor
+            )
+            
+            # Paste card onto A4 sheet
+            if card:
+                a4_sheet.paste(card, (x, y))
+        
+        return a4_sheet
+        
+    def create_id_card(self, name, zone, photo_path, output_path=None, scale_factor=1,
+                      photo_position=(315, 575),
+                      photo_size=(435, 435),
+                      name_position=(315, 850),
+                      zone_position=(315, 940)):
         try:
-            # Create a copy of the template
+            # Scale positions and sizes
+            photo_position = tuple(int(p * scale_factor) for p in photo_position)
+            photo_size = tuple(int(s * scale_factor) for s in photo_size)
+            name_position = tuple(int(p * scale_factor) for p in name_position)
+            zone_position = tuple(int(p * scale_factor) for p in zone_position)
+            
+            # Create a copy of the template and resize it
             card = self.template.copy()
+            card = card.resize((self.template_width, self.template_height), Image.Resampling.LANCZOS)
             
             # Handle online image URL
             if photo_path.startswith(('http://', 'https://')):
@@ -107,30 +159,35 @@ class IDCardGenerator:
             zone_x = zone_position[0] - (zone_bbox[2] - zone_bbox[0])//2
             draw.text((zone_x, zone_position[1]), zone, fill=(255, 255, 255), font=info_font)
             
-            card.save(output_path)
-            return True
+            if output_path:
+                card.save(output_path)
+            return card
             
         except Exception as e:
             print(f"Error creating ID card: {str(e)}")
-            return False
+            return None
 
 # Modified example usage
 if __name__ == "__main__":
-    # Initialize with your template
-    generator = IDCardGenerator("template.png")  # Replace with your template path
+    generator = IDCardGenerator("template.png")
     
-    # Read student data from Excel
     try:
         df = pd.read_excel('stddetails.xlsx')
         
-        # Generate ID cards for each student in the Excel file
-        for index, student in df.iterrows():
-            generator.create_id_card(
-                name=student['Name'],
-                zone=student['Zone'],
-                photo_path=student['image'],
-                output_path=f"ID_Card_{student['Name'].replace(' ', '_')}.png"
-            )
-        print("ID cards generated successfully!")
+        # Calculate number of sheets needed
+        num_sheets = (len(df) + 5) // 6  # Round up division by 6
+        
+        for sheet_num in range(num_sheets):
+            # Get next 6 students
+            start_idx = sheet_num * 6
+            sheet_students = df[start_idx:start_idx + 6].to_dict('records')
+            
+            # Generate sheet with 6 cards
+            sheet = generator.create_id_cards_sheet(sheet_students)
+            
+            # Save the sheet
+            sheet.save(f"ID_Cards_Sheet_{sheet_num + 1}.png")
+            
+        print("ID card sheets generated successfully!")
     except Exception as e:
-        print(f"Error reading Excel file or generating cards: {str(e)}")
+        print(f"Error generating ID card sheets: {str(e)}")
