@@ -4,6 +4,7 @@ import requests
 from io import BytesIO
 import face_recognition
 import numpy as np
+import os
 
 class IDCardGenerator:
     def __init__(self, template_path):
@@ -158,12 +159,28 @@ class IDCardGenerator:
             draw = ImageDraw.Draw(card)
             
             # Adjust font sizes relative to template size
-            name_font_size = int(self.template_height * 0.072)  # ~78px for 1080px height
+            # Base font size based on template size or a predefined size
+            base_name_font_size = int(self.template_height * 0.072)  # ~78px for 1080px height
+
+            # Adjust name font size based on length
+            if len(name) <= 13:
+                name_font_size = base_name_font_size  # 100% of base size
+            elif 14 <= len(name) <= 15:
+                # ~85% of base size
+                name_font_size = int(base_name_font_size * 0.85)
+            elif 16 <= len(name) <= 17:
+                # ~70% of base size
+                name_font_size = int(base_name_font_size * 0.80)
+            else:
+                # If name exceeds 17 characters, reduce further, for example to 60% (can be adjusted)
+                name_font_size = int(base_name_font_size * 0.70)
+
+            
             zone_font_size = int(self.template_height * 0.032)  # ~35px for 1080px height
             
             try:
                 # Changed font to Berlin Sans FB Demi for name
-                name_font = ImageFont.truetype("BRLNSDB.TTF", name_font_size)  # Berlin Sans FB Demi
+                name_font = ImageFont.truetype("BRLNSDB.TTF", name_font_size)  # Now using adjusted size
                 # Changed font to Degular Demo Medium for zone
                 info_font = ImageFont.truetype("Degular-Medium.otf", zone_font_size)  # Degular Demo Medium
             except OSError as e:
@@ -192,7 +209,7 @@ class IDCardGenerator:
             rect_y = zone_position[1] - (rect_height // 4) + (zone_text_height // 2)  # Adjusted for vertical centering
             
             # Draw rounded rectangle background
-            corner_radius = 20  # You can adjust this value for different corner roundness
+            corner_radius = 15  # You can adjust this value for different corner roundness
             draw.rounded_rectangle(
                 [rect_x, rect_y, rect_x + rect_width, rect_y + rect_height],
                 fill='#A75900',
@@ -216,6 +233,9 @@ if __name__ == "__main__":
     generator = IDCardGenerator("template.png")
     
     try:
+        # Create outputs directory if it doesn't exist
+        os.makedirs('outputs', exist_ok=True)
+        
         df = pd.read_excel('stddetails.xlsx')
         
         # Calculate number of sheets needed
@@ -229,8 +249,8 @@ if __name__ == "__main__":
             # Generate sheet with 6 cards
             sheet = generator.create_id_cards_sheet(sheet_students)
             
-            # Save the sheet
-            sheet.save(f"ID_Cards_Sheet_{sheet_num + 1}.png")
+            # Save the sheet to outputs folder
+            sheet.save(f"outputs/ID_Cards_Sheet_{sheet_num + 1}.png")
             
         print("ID card sheets generated successfully!")
     except Exception as e:
