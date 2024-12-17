@@ -2,6 +2,8 @@ from PIL import Image, ImageDraw, ImageFont # type: ignore
 import pandas as pd # type: ignore
 import requests
 from io import BytesIO
+import face_recognition
+import numpy as np
 
 class IDCardGenerator:
     def __init__(self, template_path):
@@ -79,6 +81,48 @@ class IDCardGenerator:
             else:
                 profile_photo = Image.open(photo_path)
             
+            # Convert PIL Image to numpy array for face detection
+            photo_array = np.array(profile_photo)
+            
+            # Detect faces in the image
+            face_locations = face_recognition.face_locations(photo_array)
+            
+            if face_locations:
+                # Get the first face location (top, right, bottom, left)
+                top, right, bottom, left = face_locations[0]
+                
+                # Calculate the center of the face
+                face_center_x = (left + right) // 2
+                face_center_y = (top + bottom) // 2
+                
+                # Calculate face height and add more padding (increased from 0.7 to 1.2)
+                face_height = bottom - top
+                padding = int(face_height * 1.2)  # 120% padding around the face
+                
+                # Calculate crop dimensions
+                crop_size = max(right - left, bottom - top) + (padding * 2)
+                
+                # Ensure crop_size doesn't exceed image dimensions
+                crop_size = min(crop_size, min(profile_photo.size))
+                
+                # Calculate crop coordinates
+                left = max(0, face_center_x - crop_size // 2)
+                top = max(0, face_center_y - crop_size // 2)
+                right = min(profile_photo.width, left + crop_size)
+                bottom = min(profile_photo.height, top + crop_size)
+                
+                # Crop the image around the face
+                profile_photo = profile_photo.crop((left, top, right, bottom))
+            else:
+                # If no face detected, fall back to center crop
+                width, height = profile_photo.size
+                size = min(width, height)
+                left = (width - size) // 2
+                top = (height - size) // 2
+                right = left + size
+                bottom = top + size
+                profile_photo = profile_photo.crop((left, top, right, bottom))
+
             # Resize and crop photo to fit circle without squeezing
             # Calculate dimensions to crop the image to a square
             width, height = profile_photo.size
