@@ -10,68 +10,61 @@ class IDCardGenerator:
     def __init__(self, template_path):
         # Load the template
         self.template = Image.open(template_path)
-        # A4 dimensions in pixels (at 300 DPI)
-        self.a4_width = 2480  # 210mm
-        self.a4_height = 3508  # 297mm
+        # New paper dimensions
+        self.a4_width = 3900
+        self.a4_height = 5700
         
-        # Calculate scaled template size to fit 2x3 grid with padding
-        self.padding = 30  # padding between cards and edges
-        available_width = (self.a4_width - (self.padding * 4)) / 3  # space for 3 columns
-        available_height = (self.a4_height - (self.padding * 3)) / 2  # space for 2 rows
+        # New ID card dimensions
+        self.card_base_width = 768
+        self.card_base_height = 1299
         
-        # Calculate scale factor while maintaining aspect ratio
-        width_scale = available_width / 630
-        height_scale = available_height / 1080
-        self.scale_factor = min(width_scale, height_scale)
+        # Calculate padding for 4x5 grid
+        self.horizontal_padding = (self.a4_width - (self.card_base_width * 5)) // 6
+        self.vertical_padding = (self.a4_height - (self.card_base_height * 4)) // 5
         
-        # New template dimensions
-        self.template_width = int(630 * self.scale_factor)
-        self.template_height = int(1080 * self.scale_factor)
+        # Use exact dimensions without scaling
+        self.template_width = self.card_base_width
+        self.template_height = self.card_base_height
+        self.scale_factor = 1.0
         
     def create_id_cards_sheet(self, students_data):
-        # Create blank A4 sheet
+        # Create blank sheet
         a4_sheet = Image.new('RGB', (self.a4_width, self.a4_height), 'white')
         
         for idx, student in enumerate(students_data):
-            if idx >= 6:  # Only 6 cards per sheet
+            if idx >= 20:  # Now 20 cards per sheet (4x5 grid)
                 break
             
-            # Calculate position in 2x3 grid
-            row = idx // 3
-            col = idx % 3
+            # Calculate position in 4x5 grid
+            row = idx // 5  # 5 columns
+            col = idx % 5
             
             # Calculate x and y positions with padding
-            x = self.padding + col * (self.template_width + self.padding)
-            y = self.padding + row * (self.template_height + self.padding)
+            x = self.horizontal_padding + col * (self.template_width + self.horizontal_padding)
+            y = self.vertical_padding + row * (self.template_height + self.vertical_padding)
             
             # Generate individual card
             card = self.create_id_card(
                 name=student['Name'],
                 zone=student['Zone'],
                 photo_path=student['image'],
-                output_path=None,  # Don't save individual cards
-                scale_factor=self.scale_factor
+                output_path=None,
+                scale_factor=1.0
             )
             
-            # Paste card onto A4 sheet
+            # Paste card onto sheet
             if card:
                 a4_sheet.paste(card, (x, y))
         
         return a4_sheet
         
     def create_id_card(self, name, zone, photo_path, output_path=None, scale_factor=1,
-                      photo_position=(315, 575),
-                      photo_size=(435, 435),
-                      name_position=(315, 850),
-                      zone_position=(315, 940)):
+                      photo_position=(384, 700),  # Adjusted for new dimensions
+                      photo_size=(512, 512),
+                      name_position=(414, 990),
+                      zone_position=(414, 1090)):
         try:
-            # Scale positions and sizes
-            photo_position = tuple(int(p * scale_factor) for p in photo_position)
-            photo_size = tuple(int(s * scale_factor) for s in photo_size)
-            name_position = tuple(int(p * scale_factor) for p in name_position)
-            zone_position = tuple(int(p * scale_factor) for p in zone_position)
-            
-            # Create a copy of the template and resize it
+            # Create a copy of the template and resize it to exact dimensions
             card = self.template.copy()
             card = card.resize((self.template_width, self.template_height), Image.Resampling.LANCZOS)
             
@@ -98,7 +91,7 @@ class IDCardGenerator:
                 
                 # Calculate face height and add more padding (increased from 0.7 to 1.2)
                 face_height = bottom - top
-                padding = int(face_height * 1.2)  # 120% padding around the face
+                padding = int(face_height * 1.5)  # 120% padding around the face
                 
                 # Calculate crop dimensions
                 crop_size = max(right - left, bottom - top) + (padding * 2)
@@ -230,26 +223,25 @@ class IDCardGenerator:
 
 # Modified example usage
 if __name__ == "__main__":
-    generator = IDCardGenerator("template.png")
+    generator = IDCardGenerator("template1.png")
     
     try:
-        # Create outputs directory if it doesn't exist
         os.makedirs('outputs', exist_ok=True)
         
         df = pd.read_excel('stddetails.xlsx')
         
-        # Calculate number of sheets needed
-        num_sheets = (len(df) + 5) // 6  # Round up division by 6
+        # Calculate number of sheets needed (20 cards per sheet now)
+        num_sheets = (len(df) + 19) // 20  # Round up division by 20
         
         for sheet_num in range(num_sheets):
-            # Get next 6 students
-            start_idx = sheet_num * 6
-            sheet_students = df[start_idx:start_idx + 6].to_dict('records')
+            # Get next 20 students
+            start_idx = sheet_num * 20
+            sheet_students = df[start_idx:start_idx + 20].to_dict('records')
             
-            # Generate sheet with 6 cards
+            # Generate sheet with 20 cards
             sheet = generator.create_id_cards_sheet(sheet_students)
             
-            # Save the sheet to outputs folder
+            # Save the sheet
             sheet.save(f"outputs/ID_Cards_Sheet_{sheet_num + 1}.png")
             
         print("ID card sheets generated successfully!")
