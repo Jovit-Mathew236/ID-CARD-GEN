@@ -5,6 +5,7 @@ from io import BytesIO
 import face_recognition
 import numpy as np
 import os
+from PIL.Image import Image as PILImage
 
 class IDCardGenerator:
     def __init__(self, template_path):
@@ -221,6 +222,13 @@ class IDCardGenerator:
             print(f"Error creating ID card: {str(e)}")
             return None
 
+    def save_image_as_pdf(self, image: PILImage, output_path: str) -> None:
+        """Convert PIL Image to PDF and save it"""
+        # Convert the image to RGB mode if it isn't already
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        image.save(output_path, 'PDF', resolution=100.0)
+
 # Modified example usage
 if __name__ == "__main__":
     generator = IDCardGenerator("template1.png")
@@ -241,8 +249,9 @@ if __name__ == "__main__":
             # Generate sheet with 20 cards
             sheet = generator.create_id_cards_sheet(sheet_students)
             
-            # Save the sheet
-            sheet.save(f"outputs/ID_Cards_Sheet_{sheet_num + 1}.png")
+            # Save the sheet as PDF instead of PNG
+            output_path = f"outputs/ID_Cards_Sheet_{sheet_num + 1}.pdf"
+            generator.save_image_as_pdf(sheet, output_path)
             
         print("ID card sheets generated successfully!")
     except Exception as e:
