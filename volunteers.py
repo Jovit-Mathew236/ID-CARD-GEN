@@ -49,7 +49,7 @@ class IDCardGenerator:
             card = self.create_id_card(
                 name=student['Name'],
                 zone=student['Zone'],
-                college=student['College'],
+                ministry=student['Ministry'],
                 photo_path=student['image'],
                 output_path=None,
                 scale_factor=1.0
@@ -61,17 +61,17 @@ class IDCardGenerator:
         
         return a4_sheet
         
-    def create_id_card(self, name, zone, college, photo_path, output_path=None, scale_factor=1,
+    def create_id_card(self, name, zone, ministry, photo_path, output_path=None, scale_factor=1,
                       photo_position=(384, 700),  # Adjusted for new dimensions
                       photo_size=(512, 512),
                       name_position=(390, 990),
                       zone_position=(390, 1095),
-                      college_position=(390, 1160)):
+                      ministry_position=(390, 1160)):
         try:
             # Convert any non-string inputs to strings
             name = str(name)
             zone = str(zone)
-            college = str(college)
+            ministry = str(ministry)
             
             # Create a copy of the template and resize it to exact dimensions
             card = self.template.copy()
@@ -199,33 +199,36 @@ class IDCardGenerator:
             name_x = name_position[0] - (name_bbox[2] - name_bbox[0])//2
             draw.text((name_x, name_position[1]), name, fill=(255, 255, 255), font=name_font)
             
-            # Calculate zone text dimensions for background
-            zone_bbox = draw.textbbox(zone_position, zone, font=info_font)
-            zone_text_width = zone_bbox[2] - zone_bbox[0]
-            zone_text_height = zone_bbox[3] - zone_bbox[1]
+            # Replace zone text with "Volunteer"
+            volunteer_text = "Volunteer"
+            
+            # Calculate volunteer text dimensions for background
+            volunteer_bbox = draw.textbbox(zone_position, volunteer_text, font=info_font)
+            volunteer_text_width = volunteer_bbox[2] - volunteer_bbox[0]
+            volunteer_text_height = volunteer_bbox[3] - volunteer_bbox[1]
             
             # Calculate background rectangle dimensions with padding
             padding = 30
-            rect_width = zone_text_width + (padding * 2)
-            rect_height = zone_text_height + 20
+            rect_width = volunteer_text_width + (padding * 2)
+            rect_height = volunteer_text_height + 20
             
             # Calculate rectangle position
             rect_x = zone_position[0] - rect_width // 2
-            rect_y = zone_position[1] - (rect_height // 4) + (zone_text_height // 2)  # Adjusted for vertical centering
+            rect_y = zone_position[1] - (rect_height // 4) + (volunteer_text_height // 2)
             
             # Draw rounded rectangle background
-            corner_radius = 15  # You can adjust this value for different corner roundness
+            corner_radius = 15
             draw.rounded_rectangle(
                 [rect_x, rect_y, rect_x + rect_width, rect_y + rect_height],
-                fill='#A75900',
+                fill='#693800',
                 radius=corner_radius
             )
             
-            # Draw zone text (moved after background)
-            zone_x = zone_position[0] - (zone_bbox[2] - zone_bbox[0])//2
-            draw.text((zone_x, zone_position[1]), zone, fill=(255, 255, 255), font=info_font)
+            # Draw volunteer text
+            volunteer_x = zone_position[0] - (volunteer_bbox[2] - volunteer_bbox[0])//2
+            draw.text((volunteer_x, zone_position[1]), volunteer_text, fill=(255, 255, 255), font=info_font)
             
-            # Add college text without background
+            # Add ministry text without background
             # Calculate maximum width for text with 50px padding on each side
             max_text_width = self.template_width - 100  # 50px padding on each side
             
@@ -257,16 +260,45 @@ class IDCardGenerator:
                     lines.append(' '.join(current_line))
                 return lines
 
-            # Wrap college text
-            college_lines = wrap_text(college, info_font, max_text_width)
+            # Wrap ministry text
+            ministry_lines = wrap_text(ministry, info_font, max_text_width)
             line_height = zone_font_size * 1.2  # 120% of font size for line spacing
             
-            # Draw each line of college text
-            for i, line in enumerate(college_lines):
-                college_bbox = draw.textbbox(college_position, line, font=info_font)
-                college_x = college_position[0] - (college_bbox[2] - college_bbox[0])//2
-                y_position = college_position[1] + (i * line_height)
-                draw.text((college_x, y_position), line, fill=(255, 255, 255), font=info_font)
+            # Calculate total height needed for all ministry lines
+            total_ministry_height = len(ministry_lines) * line_height
+            
+            # Calculate background rectangle dimensions for ministry text
+            ministry_padding = 30
+            max_ministry_width = 0
+            
+            # Find the widest line of text
+            for line in ministry_lines:
+                ministry_bbox = draw.textbbox((0, 0), line, font=info_font)
+                line_width = ministry_bbox[2] - ministry_bbox[0]
+                max_ministry_width = max(max_ministry_width, line_width)
+            
+            ministry_rect_width = max_ministry_width + (ministry_padding * 2)
+            ministry_rect_height = total_ministry_height + 3
+            
+            # Calculate rectangle position for ministry
+            ministry_rect_x = ministry_position[0] - ministry_rect_width // 2
+            ministry_rect_y = ministry_position[1] - (ministry_rect_height // 4) + (zone_font_size // 2)
+            
+            # Draw rounded rectangle background for ministry
+            draw.rounded_rectangle(
+                [ministry_rect_x, ministry_rect_y, 
+                 ministry_rect_x + ministry_rect_width, 
+                 ministry_rect_y + ministry_rect_height],
+                fill='#ffffff',
+                radius=15
+            )
+            
+            # Draw each line of ministry text
+            for i, line in enumerate(ministry_lines):
+                ministry_bbox = draw.textbbox(ministry_position, line, font=info_font)
+                ministry_x = ministry_position[0] - (ministry_bbox[2] - ministry_bbox[0])//2
+                y_position = ministry_position[1] + (i * line_height)
+                draw.text((ministry_x, y_position), line, fill=(227, 73, 0), font=info_font)
 
             if output_path:
                 card.save(output_path)
@@ -285,12 +317,12 @@ class IDCardGenerator:
 
 # Modified example usage
 if __name__ == "__main__":
-    generator = IDCardGenerator("template1.png")
+    generator = IDCardGenerator("template2.png")
     
     try:
-        os.makedirs('outputs', exist_ok=True)
+        os.makedirs('volunteers', exist_ok=True)
         
-        df = pd.read_excel('stddetails1.xlsx')
+        df = pd.read_excel('volunteers.xlsx')
         
         # Calculate number of sheets needed (20 cards per sheet now)
         num_sheets = (len(df) + 19) // 20  # Round up division by 20
@@ -307,7 +339,7 @@ if __name__ == "__main__":
             sheet = generator.create_id_cards_sheet(sheet_students)
             
             # Save the sheet as PDF instead of PNG
-            output_path = f"outputs/ID_Cards_Sheet_{sheet_num + 1}.pdf"
+            output_path = f"volunteers/ID_Cards_Sheet_{sheet_num + 1}.pdf"
             generator.save_image_as_pdf(sheet, output_path)
         
         print("\nID card sheets generated successfully!")
